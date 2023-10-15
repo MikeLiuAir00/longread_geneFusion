@@ -2,6 +2,7 @@ params.reads = "$projectDir/data/*.{fq, fastq}"
 params.outdir = "$projectDir/result"
 params.out = "$projectDir"
 fasta_read = Channel.fromPath(params.reads)
+                    .map{tuple(it.name.tokenize('.')[0], it)}
 
 log.info """\
     R N A S E Q - N F   P I P E L I N E
@@ -20,7 +21,7 @@ process RAWSTAT {
     publishDir "$params.outdir/nanostat", mode: 'copy'
 
     input:
-    path read
+    tuple val(sample_id), path(read)
 
     output:
     path "*.xls"
@@ -30,12 +31,33 @@ process RAWSTAT {
     """
     NanoStat -t 6 \
         --fastq $read \
-        -n testout.xls
+        -n ${sample_id}.rawstat.xls
     """
 }
 
+process PORECHOP {
+    container 'quay.io/biocontainers/nanofilt:2.8.0--py_0'
+    conda 'nanoporetech::porechop=0.2.4'
+    tag "start porechop trimming adaptor"
+
+    input:
+    tuple val(sample_id), path(read)
+
+    output:
+    path '*.fastq'
+
+    script:
+    """
+    porechop -t 6 \
+        -i $read \
+        -o ${sample_id}_deadapter.fastq \
+        --format fastq
+    """
+}
 
 workflow {
     nano_out = RAWSTAT(fasta_read)
+    porechop_out = PORECHOP(fasta_read)
     nano_out.view()
+    porechop_out.view()
 }
