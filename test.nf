@@ -138,6 +138,68 @@ process MINIMAP2 {
     """
 }
 
+process SAMTOOLS_SORT {
+    conda 'nanoporetech::samtools=1.18'
+    tag "sorting on $bam"
+    publishDir "$params.outdir/samtools"
+
+    input:
+    tuple val(meta), path(bam)
+
+    output:
+    tuple val(meta), path('*.sorted.bam')
+
+    script:
+    """
+    samtools sort \
+        -@ 6 \
+        -m 6G \
+        -o ${meta.sample_id}.sorted.bam \
+        $bam
+    """
+}
+
+process SAMTOOLS_INDEX {
+    conda 'nanoporetech::samtools=1.18'
+    tag "indexing on sorted $bam"
+    publishDir "$params.outdir/samtools"
+
+    input:
+    tuple val(meta), path(bam)
+
+    output:
+    tuple val(meta), path('*.sorted.bam.bai')
+
+    script:
+    """
+    samtools index -@ 6 $bam
+    """
+}
+
+process SAMTOOLS_SORT_BY_NAME {
+    conda 'nanoporetech::samtools=1.18'
+    tag "sorting by name on $bam"
+    publishDir "$params.outdir/samtools"
+
+    input:
+    tuple val(meta), path(bam)
+
+    output:
+    tuple val(meta), path('*.byname.sorted.bam')
+
+    script:
+    """
+    samtools sort \
+        -O BAM \
+        -o ${meta.sample_id}.byname.sorted.bam \
+        $bam
+    """
+}
+
+process LONGGF {
+    conda
+}
+
 workflow {
     // init input channel
     // fastq file input
@@ -175,7 +237,13 @@ workflow {
     // qc on filtered read
     POST_QCSTAT(NANOFILT.out)
 
-    // align read to ref
+    // align read to ref and samtools view
     MINIMAP2(fastq_read, reference, REF_INDEX.out)
-    MINIMAP2.out.view()
+
+    // sort the bam file
+    SAMTOOLS_SORT(MINIMAP2.out)
+
+    // index sorted bam file
+    SAMTOOLS_INDEX(SAMTOOLS_SORT.out)
+    SAMTOOLS_INDEX.out.view()
 }
