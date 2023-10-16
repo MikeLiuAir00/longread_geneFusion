@@ -68,7 +68,7 @@ process PORECHOP {
 
 process NANOFILT {
     // container
-    conda 'bioconda::nanofilt=2.8.0'
+    conda 'bioconda::nanofilt=2.8.0 python=3.8'
     tag "Start QC filtering on $read"
     publishDir "$params.outdir/nanofilt", mode: 'copy'
 
@@ -188,11 +188,11 @@ process SAMTOOLS_SORT_BY_NAME {
         $bam
     """
 }
-
+/*
 process LONGGF {
     conda
 }
-
+*/
 workflow {
     // init input channel
     // fastq file input
@@ -231,7 +231,7 @@ workflow {
     POST_QCSTAT(NANOFILT.out)
 
     // align read to ref and samtools view
-    MINIMAP2(fastq_read, reference, REF_INDEX.out)
+    MINIMAP2(NANOFILT.out, reference, REF_INDEX.out)
 
     // sort the bam file
     SAMTOOLS_SORT(MINIMAP2.out)
