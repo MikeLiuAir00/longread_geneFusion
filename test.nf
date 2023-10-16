@@ -114,10 +114,29 @@ process POST_QCSTAT {
     """
 }
 
-// process MINIMAP2 {
-//     conda 'bioconda::minimap2=2.24'
-//     tag 'mapping $read to ref $ref'
-// }
+process MINIMAP2 {
+    conda 'minimap2=2.24 samtools=1.18'
+    tag 'mapping $read to ref $ref'
+    publishDir "$params.outdir/minimap2", mode: 'copy'
+
+    input:
+    tuple val(meta), path(read)
+    tuple val(meta2), path(ref)
+    tuple val(meta3), path(fai)
+
+    output:
+    tuple val(meta), path("*.bam")
+
+    script:
+    """
+    minimap2 -t 6 -ax splice \
+        $ref \
+        $read |
+    samtools view -@ -hbS \
+        -t $fai \
+        -o ${meta.sample_id}.raw.bam
+    """
+}
 
 workflow {
     // init input channel
@@ -141,9 +160,22 @@ workflow {
 
 
     // Workflow start
+
     REF_INDEX(reference)
+
+    // qc on raw read
     QCSTAT(fastq_read)
+
+    // trim adapter
     PORECHOP(fastq_read)
+
+    // qc filter
     NANOFILT(PORECHOP.out)
+
+    // qc on filtered read
     POST_QCSTAT(NANOFILT.out)
+
+    // align read to ref
+    MINIMAP2(fastq_read, reference, REF_INDEX.out)
+    MINIMAP2.out.view()
 }
