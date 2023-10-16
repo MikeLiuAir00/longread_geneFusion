@@ -1,10 +1,3 @@
-params.reads = "$projectDir/data/*.{fq, fastq}"
-params.ref = "$projectDir/ref/hg38.fa"
-params.gtf= "$projectDir/ref/hg38.gtf"
-params.outdir = "$projectDir/result"
-params.out = "$projectDir"
-
-
 log.info """\
     R N A S E Q - N F   P I P E L I N E
     ===================================
