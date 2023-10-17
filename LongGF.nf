@@ -178,21 +178,41 @@ process SAMTOOLS_SORT_BY_NAME {
     tuple val(meta), path(bam)
 
     output:
-    tuple val(meta), path('*.byname.sorted.bam')
+    tuple val(meta), path('*.readname.sorted.bam')
 
     script:
     """
     samtools sort \
+        -n \
         -O BAM \
-        -o ${meta.sample_id}.byname.sorted.bam \
+        -o ${meta.sample_id}.readname.sorted.bam \
         $bam
     """
 }
-/*
+
 process LONGGF {
-    conda
+    conda 'bioconda::longgf=0.1.2'
+    tag "start detecting fusion gene on sorted $bam"
+    publishDir "$params.outdir/LongGF"
+    cpus 8
+    memory '8 GB'
+    debug true
+
+
+    input:
+    tuple val(meta), path(bam)
+    tuple val(meta2), path(gtf)
+
+    output:
+    tuple val(meta), path("*.LongGF.log")
+
+    script:
+    """
+    #!/usr/bin/bash
+    LongGF $bam $gtf 90 20 90 0 0 5 > ${meta.sample_id}.LongGF.log
+    """
 }
-*/
+
 workflow {
     // init input channel
     // fastq file input
@@ -213,6 +233,14 @@ workflow {
     }
     | set { reference }
 
+    // gtf input
+    Channel.fromPath(params.gtf)
+    | map{ file->
+        gtf_id = file.name.tokenize('.')[0]
+        meta = [gtf_id: gtf_id]
+        [meta, file]
+    }
+    | set { gtf }
 
     // Workflow start
 
@@ -238,5 +266,10 @@ workflow {
 
     // index sorted bam file
     SAMTOOLS_INDEX(SAMTOOLS_SORT.out)
-    SAMTOOLS_INDEX.out.view()
+
+    // sort by name
+    SAMTOOLS_SORT_BY_NAME(SAMTOOLS_SORT.out)
+
+    // LongGF fusion gene detection
+    LONGGF(SAMTOOLS_SORT_BY_NAME.out, gtf)
 }
